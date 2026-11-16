@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harborline: Plant at Dawn</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #10131a;
+    font-family: "Segoe UI", system-ui, sans-serif; color: #e8e4da; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+  #hud { position: fixed; inset: 0; pointer-events: none; }
+  #topbar { position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 14px; align-items: stretch; }
+  .score { background: rgba(10,14,20,.72); padding: 6px 14px; font-weight: 700;
+    letter-spacing: .06em; border-bottom: 3px solid #3f6f6a; }
+  #score-breaker { border-bottom-color: #a4552f; }
+  #clock { background: rgba(10,14,20,.72); padding: 4px 18px; text-align: center; }
+  #timer { font-size: 26px; font-weight: 800; line-height: 1; }
+  #round-label { font-size: 11px; letter-spacing: .14em; opacity: .8; }
+  #feed { position: absolute; top: 12px; right: 14px; text-align: right;
+    font-size: 13px; text-shadow: 0 1px 3px #000; }
+  #feed div { background: rgba(10,14,20,.55); padding: 2px 8px; margin-bottom: 3px; }
+  #announce { position: absolute; top: 22%; width: 100%; text-align: center;
+    font-size: 30px; font-weight: 800; letter-spacing: .04em;
+    text-shadow: 0 2px 10px #000; transition: opacity .2s; }
+  #crosshair, #hitmarker { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+  #crosshair i, #hitmarker i { position: absolute; background: #e8e4da; }
+  #crosshair i:nth-child(1) { left: -1px; top: -14px; width: 2px; height: 8px; }
+  #crosshair i:nth-child(2) { left: -1px; top: 6px; width: 2px; height: 8px; }
+  #crosshair i:nth-child(3) { left: -14px; top: -1px; width: 8px; height: 2px; }
+  #crosshair i:nth-child(4) { left: 6px; top: -1px; width: 8px; height: 2px; }
+  #hitmarker { opacity: 0; transition: opacity .1s; }
+  #hitmarker i { background: #fff; width: 2px; height: 9px; }
+  #hitmarker.kill i { background: #ff4a3c; }
+  #hitmarker i:nth-child(1) { left: -8px; top: -14px; transform: rotate(-45deg); }
+  #hitmarker i:nth-child(2) { left: 6px; top: -14px; transform: rotate(45deg); }
+  #hitmarker i:nth-child(3) { left: -8px; top: 5px; transform: rotate(45deg); }
+  #hitmarker i:nth-child(4) { left: 6px; top: 5px; transform: rotate(-45deg); }
+  #vitals { position: absolute; left: 18px; bottom: 16px; }
+  #hp-row { display: flex; align-items: center; gap: 10px; }
+  #hp-num { font-size: 34px; font-weight: 800; text-shadow: 0 2px 6px #000; }
+  #hp-bar { width: 190px; height: 12px; background: rgba(255,255,255,.18); }
+  #hp-fill { height: 100%; background: #7dc95e; transition: width .15s; }
+  #armour-row { font-size: 12px; letter-spacing: .12em; opacity: .85; margin-top: 3px; }
+  #gunbox { position: absolute; right: 18px; bottom: 16px; text-align: right; }
+  #money { color: #ffd97a; font-weight: 700; font-size: 17px; }
+  #weapon-name { font-size: 13px; letter-spacing: .1em; opacity: .9; }
+  #ammo-mag { font-size: 36px; font-weight: 800; }
+  #ammo-res { font-size: 16px; opacity: .75; margin-left: 4px; }
+  #grenade-row { font-size: 12px; letter-spacing: .12em; color: #b9d18a; }
+  #objective { position: absolute; left: 50%; bottom: 15%; transform: translateX(-50%);
+    width: 320px; text-align: center; display: none; }
+  #objective-label { font-weight: 700; letter-spacing: .1em; text-shadow: 0 1px 4px #000; }
+  #objective-bar { height: 8px; background: rgba(255,255,255,.2); margin-top: 5px; }
+  #objective-fill { height: 100%; background: #e0a32e; width: 0; }
+  #buy-menu { position: absolute; left: 18px; top: 90px; width: 250px;
+    background: rgba(10,14,20,.78); padding: 10px 12px; display: none; }
+  .buy-title { font-weight: 800; letter-spacing: .06em; margin-bottom: 7px; color: #ffd97a; }
+  .buy-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 14px; }
+  .buy-row b { color: #9fd8ff; width: 18px; }
+  .buy-row span { flex: 1; }
+  .buy-row em { font-style: normal; color: #ffd97a; }
+  .buy-row.owned { opacity: .55; } .buy-row.owned em { color: #7dc95e; }
+  .buy-row.poor { opacity: .45; } .buy-row.poor em { color: #e0483c; }
+  #overlay { position: absolute; inset: 0; display: none; align-items: center;
+    justify-content: center; background: rgba(5,8,12,.45); pointer-events: auto; }
+  .panel { background: rgba(10,14,20,.88); padding: 26px 38px; text-align: center;
+    border-top: 3px solid #e0a32e; max-width: 560px; }
+  .panel h1 { margin: 0; font-size: 44px; letter-spacing: .12em; }
+  .panel h2 { margin: 0 0 8px; font-size: 26px; letter-spacing: .05em; }
+  .panel .sub { color: #e0a32e; letter-spacing: .2em; margin-top: 2px; }
+  .panel .big { font-size: 22px; font-weight: 800; }
+  .panel button { pointer-events: auto; margin-top: 14px; background: #e0a32e; color: #14100a;
+    border: 0; font-weight: 800; letter-spacing: .08em; padding: 11px 26px;
+    font-size: 16px; cursor: pointer; }
+  .panel button:hover { background: #f2bc4a; }
+  #vignette { position: absolute; inset: 0; opacity: 0; transition: opacity .18s;
+    background: radial-gradient(ellipse at center, transparent 52%, rgba(200,20,10,.5) 100%); }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.min.js" } }
+</script>
+</head>
+<body>
+<canvas id="view" width="960" height="540"></canvas>
+<div id="hud"></div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
